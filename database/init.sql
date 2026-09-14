@@ -1,39 +1,77 @@
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS categories (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(150) UNIQUE NOT NULL,
-    role VARCHAR(20) DEFAULT 'user',
+    name VARCHAR(100) NOT NULL UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS products (
     id SERIAL PRIMARY KEY,
     name VARCHAR(150) NOT NULL,
-    description TEXT,
-    price DECIMAL(10, 2) NOT NULL,
-    stock INT DEFAULT 0,
-    image_url TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    category_id INT REFERENCES categories(id) ON DELETE SET NULL,
+    cost_price DECIMAL(12,2) NOT NULL CHECK (cost_price >= 0),
+    selling_price DECIMAL(12,2) NOT NULL CHECK (selling_price >= 0),
+    quantity INT NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+    min_stock_alert INT NOT NULL DEFAULT 5 CHECK (min_stock_alert >= 0),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS orders (
+CREATE TABLE IF NOT EXISTS stock_movements (
     id SERIAL PRIMARY KEY,
-    user_id INT REFERENCES users(id) ON DELETE CASCADE,
-    total_price DECIMAL(10, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS order_items (
-    id SERIAL PRIMARY KEY,
-    order_id INT REFERENCES orders(id) ON DELETE CASCADE,
     product_id INT REFERENCES products(id) ON DELETE CASCADE,
-    quantity INT NOT NULL,
-    unit_price DECIMAL(10, 2) NOT NULL
+    type VARCHAR(10) NOT NULL CHECK (type IN ('IN', 'OUT')),
+    quantity INT NOT NULL CHECK (quantity > 0),
+    reason TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Insertion de données de test
-INSERT INTO users (name, email, role) VALUES ('Admin KAMS', 'admin@kams.shop', 'admin');
-INSERT INTO products (name, description, price, stock, image_url) VALUES 
-('PC Portable Pro', '16GB RAM, 512GB SSD', 899.99, 10, 'https://via.placeholder.com/150'),
-('Souris Sans Fil', 'Ergonomique', 25.50, 50, 'https://via.placeholder.com/150');
+CREATE TABLE IF NOT EXISTS sales (
+    id SERIAL PRIMARY KEY,
+    total_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+    profit DECIMAL(12,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sale_items (
+    id SERIAL PRIMARY KEY,
+    sale_id INT REFERENCES sales(id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(id) ON DELETE CASCADE,
+    quantity INT NOT NULL CHECK (quantity > 0),
+    unit_price DECIMAL(12,2) NOT NULL,
+    subtotal DECIMAL(12,2) NOT NULL
+);
+
+INSERT INTO categories (name)
+VALUES
+    ('Électronique'),
+    ('Alimentation'),
+    ('Vêtements')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO products
+(name, category_id, cost_price, selling_price, quantity, min_stock_alert)
+SELECT 'Téléphone Smartphone',
+       id,
+       50000,
+       75000,
+       10,
+       3
+FROM categories
+WHERE name = 'Électronique'
+AND NOT EXISTS (
+    SELECT 1 FROM products WHERE name = 'Téléphone Smartphone'
+);
+
+INSERT INTO products
+(name, category_id, cost_price, selling_price, quantity, min_stock_alert)
+SELECT 'Sac de Riz 25kg',
+       id,
+       12000,
+       15000,
+       2,
+       5
+FROM categories
+WHERE name = 'Alimentation'
+AND NOT EXISTS (
+    SELECT 1 FROM products WHERE name = 'Sac de Riz 25kg'
+);
